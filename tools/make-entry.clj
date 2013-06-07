@@ -38,51 +38,47 @@
 
 (defn make-section [title extractor items]
   (when-not (empty? items)
-    `[[~title
-       ~@(sort (for [item items] (itemize (wikiname (extractor item)))))]]))
+    [[title
+      (sort (for [item items] (itemize (wikiname (extractor item)))))]]))
 
 (defn make-class-entry [^Class class]
   (let [interface? (.isInterface class)
         path (class->path class)
-        member->path (fn [^Member m]
-                       (str path "/" (str/replace (.getName m) #".*\." "")))
+        member->path (fn [^Member m] (str path "/" (str/replace (.getName m) #".*\." "")))
         method->path #(str (member->path %) (params-string %))
         inner-class->path #(str (class->path (.getEnclosingClass %)) "/" (.getSimpleName %))
         in-same-package? #(= (.getPackage class) (.getPackage %))
         superclass (.getSuperclass class)
         superclass (when (and (not interface?) (in-same-package? superclass))
                      [superclass])
-        interfaces (filter in-same-package? (.getInterfaces class))
         {inner-interfaces true
          inner-classes false} (group-by #(.isInterface %) (.getDeclaredClasses class))
-        fields (.getDeclaredFields class)
-        methods (.getDeclaredMethods class)
-        constructors (.getDeclaredConstructors class)
-        {static-fields true, instance-fields false} (group-by static? fields)
-        {static-methods true, instance-methods false} (group-by static? methods)]
-    `[[~(if interface? "インタフェース" "クラス")
-       ~(str (emph (.getCanonicalName class))
-             " [" (class->file-name class) "](url goes here)")]
-      ["概要" "ここに概要を書く"]
-      ["関連"
-       ~@(make-section "スーパークラス" class->path superclass)
-       ~@(make-section (if interface? "スーパーインタフェース" "インタフェース")
-                       class->path
-                       interfaces)
-       ~@(make-section "内部クラス" inner-class->path inner-classes)
-       ~@(make-section "内部インタフェース" inner-class->path inner-interfaces)       
-       ~@(make-section "クラスフィールド" member->path static-fields)
-       ~@(make-section "クラスメソッド" method->path static-methods)
-       ~@(make-section "コンストラクタ" method->path constructors)
-       ~@(make-section "フィールド" member->path instance-fields)
-       ~@(make-section "メソッド" method->path instance-methods)]]))
+        {static-fields true, instance-fields false} (group-by static? (.getDeclaredFields class))
+        {static-methods true, instance-methods false} (group-by static? (.getDeclaredMethods class))]
+    [[(if interface? "インタフェース" "クラス")
+      [(str (emph (.getCanonicalName class))
+           " [" (class->file-name class) "](url goes here)")]]
+     ["概要" ["ここに概要を書く"]]
+     ["関連"
+      (concat
+       (make-section "スーパークラス" class->path superclass)
+       (make-section (if interface? "スーパーインタフェース" "インタフェース")
+                     class->path
+                     (filter in-same-package? (.getInterfaces class)))
+       (make-section "内部クラス" inner-class->path inner-classes)
+       (make-section "内部インタフェース" inner-class->path inner-interfaces)
+       (make-section "クラスフィールド" member->path static-fields)
+       (make-section "クラスメソッド" method->path static-methods)
+       (make-section "コンストラクタ" method->path (.getDeclaredConstructors class))
+       (make-section "フィールド" member->path instance-fields)
+       (make-section "メソッド" method->path instance-methods))]]))
 
 (defn print-entry [entry]
   (letfn [(print-section [section depth]
-            (let [[title & contents] section]
+            (let [[title contents] section]
               (println (str/join (repeat depth \#)) title)
               (doseq [content contents]
-                (if (coll? content)
+                (if (vector? content)
                   (print-section content (inc depth))
                   (println content)))
               (newline)))]
