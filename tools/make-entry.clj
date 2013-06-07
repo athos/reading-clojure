@@ -31,6 +31,10 @@
 (defn static? [^Member m]
   (Modifier/isStatic (.getModifiers m)))
 
+(defn divide [pred coll]
+  (let [{t true, f false} (group-by pred coll)]
+    [t f]))
+
 ;; for debug
 (defmacro ?= [x]
   `(do (println '~x ":" ~x)
@@ -38,8 +42,7 @@
 
 (defn make-section [title extractor items]
   (when-not (empty? items)
-    [[title
-      (sort (for [item items] (itemize (wikiname (extractor item)))))]]))
+    [[title (sort (for [item items] (itemize (wikiname (extractor item)))))]]))
 
 (defn make-class-entry [^Class class]
   (let [interface? (.isInterface class)
@@ -51,13 +54,12 @@
         superclass (.getSuperclass class)
         superclass (when (and (not interface?) (in-same-package? superclass))
                      [superclass])
-        {inner-interfaces true
-         inner-classes false} (group-by #(.isInterface %) (.getDeclaredClasses class))
-        {static-fields true, instance-fields false} (group-by static? (.getDeclaredFields class))
-        {static-methods true, instance-methods false} (group-by static? (.getDeclaredMethods class))]
+        [inner-interfaces inner-classes] (divide #(.isInterface %) (.getDeclaredClasses class))
+        [static-fields instance-fields] (divide static? (.getDeclaredFields class))
+        [static-methods instance-methods] (divide static? (.getDeclaredMethods class))]
     [[(if interface? "インタフェース" "クラス")
       [(str (emph (.getCanonicalName class))
-           " [" (class->file-name class) "](url goes here)")]]
+            " [" (class->file-name class) "](url goes here)")]]
      ["概要" ["ここに概要を書く"]]
      ["関連"
       (concat
